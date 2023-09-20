@@ -2,17 +2,27 @@ module validators2
 
 go 1.20
 
-require github.com/ethereum/go-ethereum v1.12.2
+require (
+	github.com/buger/jsonparser v1.1.1
+	github.com/ethereum/go-ethereum v1.12.2
+	github.com/namsral/flag v1.7.4-pre
+	github.com/olebedev/emitter v0.0.0-20230411050614-349169dec2ba
+	github.com/sirupsen/logrus v1.9.3
+	go.uber.org/dig v1.17.0
+)
 
 require (
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
+	github.com/andybalholm/cascadia v1.3.1 // indirect
 	github.com/rs/cors v1.9.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
+	golang.org/x/net v0.10.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 )
 
 require (
 	github.com/DataDog/zstd v1.5.5 // indirect
+	github.com/PuerkitoBio/goquery v1.8.1
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
 	github.com/deckarep/golang-set/v2 v2.3.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
