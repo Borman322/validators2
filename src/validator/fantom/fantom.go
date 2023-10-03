@@ -16,6 +16,7 @@ type Service struct {
 }
 
 type Validator struct {
+	Platform   string
 	Rewards    float64
 	RewardTime string
 	Uptime     float32
@@ -38,10 +39,14 @@ func NewService(
 	return &service, nil
 }
 
+func (s *Service) GetValidatorPlatform(ctx context.Context) (string, error) {
+	s.validator.Platform = "Fantom"
+	return s.validator.Platform, nil
+}
+
 func (s *Service) GetValidatorReward(ctx context.Context) (float64, error) {
-	reward, err := GetValidatorReward()
+	reward, err := GetValidatorReward(s.config.ValidatorAddress)
 	if err != nil {
-		log.Errorf("Can not get validator's reward: %s", err)
 		return 0, err
 	}
 
@@ -53,27 +58,30 @@ func (s *Service) GetValidatorReward(ctx context.Context) (float64, error) {
 }
 
 func (s *Service) GetValidatorUptime(ctx context.Context) (float32, error) {
-	result, err := GetValidatorUptime()
+	result, err := GetValidatorUptime(s.config.ValidatorAddress, 10)
 	if err != nil {
 		log.Error(err)
 	}
 
-	bigFloat := new(big.Float).SetInt(result)
-
-	// Convert the big.Float to a float32
-	floatValue, _ := bigFloat.Float32()
-
-	s.validator.Uptime = floatValue
+	s.validator.Uptime = result
 
 	return s.validator.Uptime, nil
 }
 
 func (s *Service) IsValidatorHealthy(ctx context.Context) (bool, error) {
-
+	status, err := IsValidatorHealthy(s.config.ValidatorAddress)
+	if err != nil {
+		log.Error(err)
+	}
+	s.validator.IsHealty = status
 	return s.validator.IsHealty, nil
 }
 
 func (s *Service) IsValidatorSlashed(ctx context.Context) (bool, error) {
-
+	slash, err := IsValidatorSlashed(s.config.ValidatorAddress)
+	if err != nil {
+		log.Error(err)
+	}
+	s.validator.IsSlashed = slash
 	return s.validator.IsSlashed, nil
 }

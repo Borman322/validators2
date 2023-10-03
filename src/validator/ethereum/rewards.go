@@ -3,6 +3,7 @@ package ethereum
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"net/http"
@@ -21,9 +22,9 @@ type ConsensusReward struct {
 	} `json:"data"`
 }
 
-func GetValidatorReward() (float64, error) {
+func GetValidatorReward(index string) (float64, error) {
 
-	urls := []string{"https://beaconcha.in/api/v1/validator/2000/execution/performance", "https://beaconcha.in/api/v1/validator/2000/performance"}
+	urls := []string{fmt.Sprintf("https://beaconcha.in/api/v1/validator/%s/execution/performance", index), fmt.Sprintf("https://beaconcha.in/api/v1/validator/%s/performance", index)}
 
 	var rewards []string
 
@@ -55,12 +56,18 @@ func GetValidatorReward() (float64, error) {
 			if err != nil {
 				return 0, errors.New("ETH validator: Can not unmarshal JSON. " + err.Error())
 			}
+			if len(execution.Data) == 0 {
+				return 0, fmt.Errorf("ETH validator: Index is not correct")
+			}
 			response = execution
 		} else {
 			var consensus ConsensusReward
 			err = json.Unmarshal(body, &consensus)
 			if err != nil {
 				return 0, errors.New("ETH validator: Can not unmarshal JSON. " + err.Error())
+			}
+			if len(consensus.Data) == 0 {
+				return 0, fmt.Errorf("ETH validator: Index is not correct")
 			}
 			response = consensus
 		}

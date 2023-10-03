@@ -1,8 +1,7 @@
 package fantom
 
 import (
-	"fmt"
-	"math/big"
+	"errors"
 	validator "validators2/src/contract/fantom"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -10,38 +9,35 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-func GetValidatorReward(address string) (string, error) {
+func IsValidatorHealthy(address string) (bool, error) {
 	const api = "https://rpc.ftm.tools/"
 
 	client, err := ethclient.Dial(api)
 	if err != nil {
-		fmt.Println(err)
+		return false, errors.New("FTM validator: " + err.Error())
 	}
-
 	contractAddress := common.HexToAddress("0xFC00FACE00000000000000000000000000000000")
 	validatorAddress := common.HexToAddress(address)
 
 	pohuiContract, err := validator.NewPohui(contractAddress, client)
 	if err != nil {
-		fmt.Println(err)
+		return false, errors.New("FTM validator: " + err.Error())
 	}
 
 	validatorID, err := pohuiContract.GetValidatorID(&bind.CallOpts{}, validatorAddress)
 	if err != nil {
-		return "", fmt.Errorf("FTM validator: address is not correct")
+		return false, errors.New("FTM validator: " + err.Error())
 	}
-
-	if validatorID.Cmp(big.NewInt(0)) == 0 {
-		return "", fmt.Errorf("FTM validator: address is not correct")
-	}
-	pendingRewards, err := pohuiContract.PendingRewards(&bind.CallOpts{}, validatorAddress, validatorID)
+	status, err := pohuiContract.GetValidator(&bind.CallOpts{}, validatorID)
 	if err != nil {
-		fmt.Println(err)
+		return false, errors.New("FTM validator: " + err.Error())
 	}
-
-	var value = pendingRewards.String()
-	insertIndex := len(value) - 18
-	result := value[:insertIndex] + "." + value[insertIndex:insertIndex+4]
-
+	var result bool
+	value := status.Status.Int64()
+	if value == 0 {
+		result = true
+	} else {
+		result = false
+	}
 	return result, nil
 }

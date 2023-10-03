@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -18,8 +19,8 @@ type ResponseUptime struct {
 	} `json:"result"`
 }
 
-func GetValidatorUptime() (float32, error) {
-	const api = "https://staking-api.polygon.technology/api/v2/validators/31"
+func GetValidatorUptime(id string) (float32, error) {
+	api := fmt.Sprintf("https://staking-api.polygon.technology/api/v2/validators/%s", id)
 
 	client := http.DefaultClient
 

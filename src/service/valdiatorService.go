@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"validators2/src/config"
 	"validators2/src/validator"
 	"validators2/src/validator/avalanche"
@@ -32,31 +34,59 @@ func (s *ValidatorService) Start(ctx context.Context) {
 }
 
 func (s *ValidatorService) monitorValidator(config *config.Config, ctx context.Context) {
-	log.Info("initialized validator")
+	log.Info("Initialized validator")
 	validator, err := s.CreateValidator(config)
-	log.Info("created validator")
-	log.Println(validator)
-	log.Println(config)
+	log.Info("Created validator")
 	if err == nil {
+		platform, err := validator.GetValidatorPlatform(ctx)
+		if err != nil {
+			log.Error(err)
+		}
+
 		reward, err := validator.GetValidatorReward(ctx)
 		if err != nil {
 			log.Error(err)
+			os.Exit(0)
 		}
 
 		uptime, err := validator.GetValidatorUptime(ctx)
 		if err != nil {
 			log.Error(err)
+			os.Exit(0)
 		}
+
 		isHealthy, err := validator.IsValidatorHealthy(ctx)
 		if err != nil {
 			log.Error(err)
+			os.Exit(0)
 		}
 
 		isSlashed, err := validator.IsValidatorSlashed(ctx)
 		if err != nil {
 			log.Error(err)
+			os.Exit(0)
 		}
-		log.Info(config.Chain, ": ", reward, uptime, isHealthy, isSlashed)
+
+		data := map[string]interface{}{
+			"platform":  platform,
+			"reward":    reward,
+			"uptime":    uptime,
+			"isHealthy": isHealthy,
+			"isSlashed": isSlashed,
+		}
+		// encoder := json.NewEncoder(os.Stdout)
+		// encoder.Encode(data)
+
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			log.Error(err)
+		}
+		output := log.New()
+		output.SetFormatter(&log.TextFormatter{
+			DisableQuote: true,
+		})
+		output.WithField("output", string(jsonData)).Info()
+
 	} else {
 		log.Error("Couldn't get validator info")
 	}
@@ -87,10 +117,14 @@ func (s *ValidatorService) CreateValidator(config *config.Config) (validator.Val
 		validator, err = fantom.NewService(config)
 	case "pol":
 		validator, err = polygon.NewService(config)
+	default:
+		log.Info("Incorrect input data")
+		os.Exit(0)
 	}
 
 	if err != nil {
 		log.Error(err)
+		os.Exit(0)
 	}
 	return validator, err
 }

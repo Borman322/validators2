@@ -20,8 +20,8 @@ type ValidatorStats struct {
 	} `json:"data"`
 }
 
-func GetValidatorMissedBlocks(endDay int, startDay int) (*ValidatorStats, error) {
-	urlStats := fmt.Sprintf("https://beaconcha.in/api/v1/validator/stats/2000?end_day=%d&start_day=%d", endDay, startDay)
+func GetValidatorMissedBlocks(index string, endDay int, startDay int) (*ValidatorStats, error) {
+	urlStats := fmt.Sprintf("https://beaconcha.in/api/v1/validator/stats/%s?end_day=%d&start_day=%d", index, endDay, startDay)
 
 	reqStats, err := http.NewRequest("GET", urlStats, nil)
 	if err != nil {

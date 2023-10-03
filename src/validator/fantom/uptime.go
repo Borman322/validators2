@@ -1,6 +1,7 @@
 package fantom
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	validator "validators2/src/contract/fantom"
@@ -10,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-func GetValidatorUptime() (*big.Int, error) {
+func GetValidatorUptime(address string, allEpochs int64) (float32, error) {
 	const api = "https://rpc.ftm.tools/"
 
 	client, err := ethclient.Dial(api)
@@ -19,7 +20,7 @@ func GetValidatorUptime() (*big.Int, error) {
 	}
 
 	contractAddress := common.HexToAddress("0xFC00FACE00000000000000000000000000000000")
-	validatorAddress := common.HexToAddress("0x0AA7Aa665276A96acD25329354FeEa8F955CAf2b")
+	validatorAddress := common.HexToAddress(address)
 
 	pohuiContract, err := validator.NewPohui(contractAddress, client)
 	if err != nil {
@@ -31,10 +32,35 @@ func GetValidatorUptime() (*big.Int, error) {
 		fmt.Println(err)
 	}
 
-	validatorInfo, err := pohuiContract.GetValidator(&bind.CallOpts{}, validatorID)
+	currentEpoch, err := pohuiContract.CurrentEpoch(&bind.CallOpts{})
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	return validatorInfo.DeactivatedTime, nil
+	currentEpochInt := currentEpoch.Int64()
+
+	finalEpoch := currentEpochInt - allEpochs
+
+	var workUptime int64
+	var offline int64
+
+	for i := currentEpochInt; i >= finalEpoch; i-- {
+		epochBigInt := new(big.Int).SetInt64(i)
+		accumulatedUptime, err := pohuiContract.GetEpochAccumulatedUptime(nil, epochBigInt, validatorID)
+		if err != nil {
+			return 0, errors.New(err.Error())
+		}
+		workUptime += accumulatedUptime.Int64()
+
+		offlineTime, err := pohuiContract.GetEpochOfflineTime(nil, epochBigInt, validatorID)
+		if err != nil {
+			return 0, errors.New(err.Error())
+		}
+
+		offline += offlineTime.Int64()
+	}
+
+	allTime := workUptime + offline
+	uptime := (float64(workUptime) * 100) / float64(allTime)
+	return float32(uptime), nil
 }

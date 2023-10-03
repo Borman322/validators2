@@ -2,7 +2,6 @@ package fantom
 
 import (
 	"fmt"
-	"math/big"
 	validator "validators2/src/contract/fantom"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -10,14 +9,14 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-func GetValidatorReward(address string) (string, error) {
+func IsValidatorSlashed(address string) (bool, error) {
+
 	const api = "https://rpc.ftm.tools/"
 
 	client, err := ethclient.Dial(api)
 	if err != nil {
 		fmt.Println(err)
 	}
-
 	contractAddress := common.HexToAddress("0xFC00FACE00000000000000000000000000000000")
 	validatorAddress := common.HexToAddress(address)
 
@@ -28,20 +27,11 @@ func GetValidatorReward(address string) (string, error) {
 
 	validatorID, err := pohuiContract.GetValidatorID(&bind.CallOpts{}, validatorAddress)
 	if err != nil {
-		return "", fmt.Errorf("FTM validator: address is not correct")
+		fmt.Println(err)
 	}
-
-	if validatorID.Cmp(big.NewInt(0)) == 0 {
-		return "", fmt.Errorf("FTM validator: address is not correct")
-	}
-	pendingRewards, err := pohuiContract.PendingRewards(&bind.CallOpts{}, validatorAddress, validatorID)
+	slash, err := pohuiContract.IsSlashed(&bind.CallOpts{}, validatorID)
 	if err != nil {
 		fmt.Println(err)
 	}
-
-	var value = pendingRewards.String()
-	insertIndex := len(value) - 18
-	result := value[:insertIndex] + "." + value[insertIndex:insertIndex+4]
-
-	return result, nil
+	return slash, nil
 }

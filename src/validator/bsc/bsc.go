@@ -27,9 +27,11 @@ type Service struct {
 	config    *config.Config
 	contract  *contract.BscValidator
 	validator Validator
+	address   ValidatorAddress
 }
 
 type Validator struct {
+	Platform   string
 	Rewards    float64
 	RewardTime string
 	Uptime     float32
@@ -41,6 +43,11 @@ type Indicators struct {
 	Height *big.Int
 	Count  *big.Int
 	Exist  bool
+}
+
+type ValidatorAddress struct {
+	SelfDelegateAddress string
+	ConsensusAddress    string
 }
 
 func NewService(
@@ -55,8 +62,7 @@ func NewService(
 func (s *Service) Start() error {
 	err := s.connectEthereum()
 	if err != nil {
-		log.Errorf("unable to start contract service: %s", err)
-		return err
+		return errors.New("Unable to start contract service: " + err.Error())
 	}
 	contractAddress := common.HexToAddress(s.config.StakingContractAddress)
 	instance, err := contract.NewBscValidator(contractAddress, s.ethClient)
@@ -65,6 +71,14 @@ func (s *Service) Start() error {
 		return err
 	}
 	s.contract = instance
+
+	listAddress, err := parseAddresses(s.config.OperatorAddress)
+	if err != nil {
+		return nil
+	}
+	s.address.SelfDelegateAddress = listAddress[0]
+	s.address.ConsensusAddress = listAddress[1]
+
 	return nil
 }
 
@@ -76,7 +90,6 @@ func (s *Service) dialEthClientOrFatal(url string) (*ethclient.Client, *big.Int,
 	}
 	chainID, err := dial.ChainID(context.Background())
 	if err != nil {
-		log.Errorf("unable to get chain id: %s", err)
 		return nil, big.NewInt(0), err
 	}
 	return dial, chainID, nil
@@ -88,13 +101,18 @@ func (s *Service) connectEthereum() error {
 	return err
 }
 
+func (s *Service) GetValidatorPlatform(ctx context.Context) (string, error) {
+	s.validator.Platform = "Binance Smart Chain"
+	return s.validator.Platform, nil
+}
+
 func (s *Service) GetValidatorReward(ctx context.Context) (float64, error) {
 
 	if isRewardInfoFresh(s.validator.Rewards, s.validator.RewardTime) {
 		return s.validator.Rewards, nil
 	}
 
-	result, err := getBinanceExplorerJSON(100, 0)
+	result, err := getBinanceExplorerJSON(s.address.SelfDelegateAddress, 100, 0)
 	if err != nil {
 		return 0, errors.New("BSC validator: " + err.Error())
 	}
@@ -106,7 +124,7 @@ func (s *Service) GetValidatorReward(ctx context.Context) (float64, error) {
 
 	iterations := result.Total / 100
 	for i := 1; i <= iterations; i++ {
-		result, err := getBinanceExplorerJSON(100, i*100)
+		result, err := getBinanceExplorerJSON(s.address.SelfDelegateAddress, 100, i*100)
 		if err != nil {
 			return 0, errors.New("BSC validator: " + err.Error())
 		}
@@ -120,11 +138,22 @@ func (s *Service) GetValidatorReward(ctx context.Context) (float64, error) {
 }
 
 func (s *Service) GetValidatorUptime(ctx context.Context) (float32, error) {
+	address := common.HexToAddress(s.address.ConsensusAddress)
+	_, value2, err := s.contract.GetSlashIndicator(nil, address)
+	if err != nil {
+		return 0, errors.New("BSC validator: " + err.Error())
+	}
+	uptime := 100 - (float32(value2.Int64())*100)/50
+	if uptime < 0 {
+		uptime = 0
+	}
+	s.validator.Uptime = uptime
+
 	return s.validator.Uptime, nil
 }
 
 func (s *Service) IsValidatorHealthy(ctx context.Context) (bool, error) {
-	status, err := parseStatusFromBSC()
+	status, err := parseStatusFromBSC(s.config.OperatorAddress)
 	if err != nil {
 		return false, errors.New("BSC validator: " + err.Error())
 	}
@@ -139,7 +168,7 @@ func (s *Service) IsValidatorHealthy(ctx context.Context) (bool, error) {
 }
 
 func (s *Service) IsValidatorSlashed(ctx context.Context) (bool, error) {
-	validatorHexAddress := common.HexToAddress(s.config.ValidatorAddress)
+	validatorHexAddress := common.HexToAddress(s.address.ConsensusAddress)
 
 	var isSlashed Indicators
 	isSlashed, err := s.contract.Indicators(nil, validatorHexAddress)
@@ -147,10 +176,12 @@ func (s *Service) IsValidatorSlashed(ctx context.Context) (bool, error) {
 		return false, errors.New("BSC validator: " + err.Error())
 	}
 
-	if isSlashed.Exist {
-		s.validator.IsSlashed = isSlashed.Exist
+	count := isSlashed.Count.Int64()
+
+	if count >= 50 {
+		s.validator.IsSlashed = true
 	} else {
-		s.validator.IsSlashed = isSlashed.Exist
+		s.validator.IsSlashed = false
 	}
 
 	return s.validator.IsSlashed, nil
@@ -212,7 +243,7 @@ func (s *Service) GetMissedBlocksOfValidator(ctx context.Context) (*big.Int, *bi
 	opts := bind.CallOpts{
 		Context: ctx,
 	}
-	address := common.HexToAddress(s.config.ValidatorAddress)
+	address := common.HexToAddress(s.address.ConsensusAddress)
 	log.Info("common.HexToAddress ", address)
 	height, count, err := s.contract.GetSlashIndicator(&opts, address)
 	if err != nil {
@@ -229,7 +260,7 @@ func (s *Service) GetEarnedTokens(ctx context.Context) (float64, error) {
 		return s.validator.Rewards, nil
 	}
 
-	result, err := getBinanceExplorerJSON(100, 0)
+	result, err := getBinanceExplorerJSON(s.address.SelfDelegateAddress, 100, 0)
 	if err != nil {
 		return 0, errors.New("BSC validator: " + err.Error())
 	}
@@ -241,7 +272,7 @@ func (s *Service) GetEarnedTokens(ctx context.Context) (float64, error) {
 
 	iterations := result.Total / 100
 	for i := 1; i <= iterations; i++ {
-		result, err := getBinanceExplorerJSON(100, i*100)
+		result, err := getBinanceExplorerJSON(s.address.SelfDelegateAddress, 100, i*100)
 		if err != nil {
 			return 0, errors.New("BSC validator: " + err.Error())
 		}

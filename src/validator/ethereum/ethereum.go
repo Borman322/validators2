@@ -2,11 +2,10 @@ package ethereum
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"time"
 	"validators2/src/config"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Service struct {
@@ -16,6 +15,7 @@ type Service struct {
 }
 
 type Validator struct {
+	Platform   string
 	Rewards    float64
 	RewardTime string
 	Uptime     float32
@@ -38,10 +38,15 @@ func NewService(
 	return &service, nil
 }
 
+func (s *Service) GetValidatorPlatform(ctx context.Context) (string, error) {
+	s.validator.Platform = "Ethereum"
+	return s.validator.Platform, nil
+}
+
 func (s *Service) GetValidatorReward(ctx context.Context) (float64, error) {
-	reward, err := GetValidatorReward()
+	reward, err := GetValidatorReward(s.config.ValidatorIndex)
+	fmt.Println(s.config.ValidatorIndex)
 	if err != nil {
-		log.Errorf("Can not get validator's reward: %s", err)
 		return 0, err
 	}
 
@@ -50,14 +55,18 @@ func (s *Service) GetValidatorReward(ctx context.Context) (float64, error) {
 }
 
 func (s *Service) GetValidatorUptime(ctx context.Context) (float32, error) {
-
+	uptime, err := GetValidatorUptime(s.config.ValidatorIndex)
+	if err != nil {
+		return 0, err
+	}
+	s.validator.Uptime = uptime
 	return s.validator.Uptime, nil
 }
 
 func (s *Service) IsValidatorHealthy(ctx context.Context) (bool, error) {
-	status, err := GetValidatorStatusAndSlashes()
+	status, err := GetValidatorStatusAndSlashes(s.config.ValidatorIndex)
 	if err != nil {
-		log.Errorf("Can not get validator's healthy")
+		return false, err
 	}
 	if status.Data.Status == "active_online" {
 		s.validator.IsHealty = true
@@ -69,9 +78,9 @@ func (s *Service) IsValidatorHealthy(ctx context.Context) (bool, error) {
 }
 
 func (s *Service) IsValidatorSlashed(ctx context.Context) (bool, error) {
-	status, err := GetValidatorStatusAndSlashes()
+	status, err := GetValidatorStatusAndSlashes(s.config.ValidatorIndex)
 	if err != nil {
-		log.Errorf("Can not get validator's slash info")
+		return false, err
 	}
 
 	s.validator.IsSlashed = status.Data.Slashed
@@ -85,7 +94,7 @@ func (s *Service) GetMissedBlocksOfValidator(ctx context.Context) (int, error) {
 	var totalMissedBlocks = 0
 
 	for {
-		result, err := GetValidatorMissedBlocks(iterator+500, iterator)
+		result, err := GetValidatorMissedBlocks(s.config.ValidatorIndex, iterator+500, iterator)
 		if err != nil {
 			return 0, err
 		}

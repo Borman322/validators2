@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -20,8 +21,8 @@ type ResponseBlocks struct {
 	} `json:"result"`
 }
 
-func GetValidatorMissedBlocks() (int, error) {
-	const api = "https://staking-api.polygon.technology/api/v2/validators/31"
+func GetValidatorMissedBlocks(id string) (int, error) {
+	api := fmt.Sprintf("https://staking-api.polygon.technology/api/v2/validators/%s", id)
 
 	client := http.DefaultClient
 

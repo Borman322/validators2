@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"net/http"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type ValidatorInfo struct {
@@ -19,6 +22,7 @@ type ValidatorInfo struct {
 	PotentialReward        string      `json:"potentialReward"`
 	AccruedDelegateeReward string      `json:"accruedDelegateeReward"`
 	Delegator              []Delegator `json:"delegators"`
+	Uptime                 string      `json:"uptime"`
 }
 
 type Delegator struct {
@@ -34,9 +38,12 @@ type Delegator struct {
 
 type ValidatorResponse struct {
 	JSONRPC string `json:"jsonrpc"`
-	Result  struct {
+	Result  *struct {
 		Validators []ValidatorInfo `json:"validators"`
 	} `json:"result"`
+	Error *struct {
+		Code int `json:"code"`
+	} `json:"error"`
 	ID int `json:"id"`
 }
 
@@ -46,18 +53,19 @@ type ValidatorReward struct {
 	Reward   string
 }
 
-func GetValidatorReward() (string, error) {
+func GetValidatorReward(nodeID string) (string, error) {
 	const url = "https://api.avax.network/ext/bc/P"
 	method := "POST"
 
-	payload := []byte(`{
+	strPayload := fmt.Sprintf(`{
         "jsonrpc": "2.0",
         "method": "platform.getCurrentValidators",
         "params": {
-            "nodeIDs": ["NodeID-NcZtrWEjPY7XDT5PHgZbwXLCW3LGBjxui"]
+            "nodeIDs": ["%s"]
         },
         "id": 1
-    }`)
+    }`, nodeID)
+	payload := []byte(strPayload)
 
 	client := &http.Client{}
 	req, err := http.NewRequest(method, url, bytes.NewBuffer(payload))
@@ -74,11 +82,14 @@ func GetValidatorReward() (string, error) {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-
 	var response ValidatorResponse
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		return "", errors.New("Avalanche validator: " + err.Error())
+	}
+
+	if response.Error != nil {
+		return "", errors.New("Avalanche validator: NODE-ID is not correct")
 	}
 
 	var validatorReward, delegatorsReward, totalReward big.Int
@@ -86,7 +97,6 @@ func GetValidatorReward() (string, error) {
 	for _, validator := range response.Result.Validators {
 		validatorReward.SetString(validator.PotentialReward, 10)
 
-		// Учтем комиссию делегатов для валидатора (0.02%)
 		validatorCommission := new(big.Int)
 		validatorCommission.SetString(validator.AccruedDelegateeReward, 10)
 		validatorCommission.Mul(validatorCommission, big.NewInt(2))
@@ -97,7 +107,6 @@ func GetValidatorReward() (string, error) {
 			delegatorReward := new(big.Int)
 			delegatorReward.SetString(delegator.PotentialReward, 10)
 
-			// Учтите комиссию делегата при добавлении к общей сумме (0.02%)
 			delegatorCommission := new(big.Int)
 			delegatorCommission.SetString(delegator.Commission, 10)
 			delegatorCommission.Mul(delegatorCommission, big.NewInt(2))
@@ -112,9 +121,10 @@ func GetValidatorReward() (string, error) {
 	delegatorsReward.Div(&delegatorsReward, big.NewInt(100))
 
 	totalReward.Add(&validatorReward, &delegatorsReward)
+	log.Info("uptime ", response.Result.Validators[len(response.Result.Validators)-1].Uptime)
 
 	reward := totalReward.String()
 	insertIndex := len(reward) - 9
 	result := reward[:insertIndex] + "." + reward[insertIndex:insertIndex+4]
-	return result, nil
+	return result, err
 }

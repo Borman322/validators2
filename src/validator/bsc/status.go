@@ -2,6 +2,7 @@ package bsc
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/PuerkitoBio/goquery"
@@ -11,8 +12,8 @@ type Status struct {
 	Active bool `json:"active"`
 }
 
-func parseStatusFromBSC() (string, error) {
-	url := "https://www.bnbchain.org/en/staking/validator/bva1xnudjls7x4p48qrk0j247htt7rl2k2dzp3mr3j"
+func parseStatusFromBSC(address string) (string, error) {
+	url := fmt.Sprintf("https://www.bnbchain.org/en/staking/validator/%s", address)
 
 	response, err := http.Get(url)
 	if err != nil {

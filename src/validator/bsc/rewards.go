@@ -23,8 +23,8 @@ type Response struct {
 	} `json:"rewardDetails"`
 }
 
-func getBinanceExplorerJSON(limit int, offset int) (*Response, error) {
-	url := fmt.Sprintf("https://explorer.bnbchain.org/v1/staking/chains/bsc/delegators/bnb1xnudjls7x4p48qrk0j247htt7rl2k2dzpd6n0k/rewards?limit=%d&offset=%d", limit, offset)
+func getBinanceExplorerJSON(address string, limit int, offset int) (*Response, error) {
+	url := fmt.Sprintf("https://explorer.bnbchain.org/v1/staking/chains/bsc/delegators/%s/rewards?limit=%d&offset=%d", address, limit, offset)
 
 	resp, err := http.Get(url)
 	if err != nil {

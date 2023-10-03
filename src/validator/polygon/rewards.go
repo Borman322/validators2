@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"net/http"
@@ -12,12 +13,13 @@ import (
 type Response struct {
 	Status  string `json:"status"`
 	Success bool   `json:"success"`
-	Result  struct {
+	Result  *struct {
 		Id                        int         `json:"id"`
 		Name                      string      `json:"name"`
 		ClaimedReward             json.Number `json:"claimedReward"`
 		ValidatorUnclaimedRewards json.Number `json:"validatorUnclaimedRewards"`
 	} `json:"result"`
+	Error *string `json:"error"`
 }
 
 type ValidatorReward struct {
@@ -26,8 +28,8 @@ type ValidatorReward struct {
 	Reward   string
 }
 
-func GetValidatorReward() (string, error) {
-	const api = "https://staking-api.polygon.technology/api/v2/validators/31"
+func GetValidatorReward(id string) (string, error) {
+	api := fmt.Sprintf("https://staking-api.polygon.technology/api/v2/validators/%s", id)
 
 	client := http.DefaultClient
 
@@ -57,6 +59,10 @@ func GetValidatorReward() (string, error) {
 	err = json.Unmarshal(formattedData.Bytes(), &data)
 	if err != nil {
 		return "", errors.New("MATIC validator: Can not unmarshal JSON. " + err.Error())
+	}
+
+	if !data.Success {
+		return "", errors.New("MATIC validator: " + *data.Error)
 	}
 
 	totalRewards := new(big.Int)

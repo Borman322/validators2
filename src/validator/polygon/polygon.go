@@ -16,6 +16,7 @@ type Service struct {
 }
 
 type Validator struct {
+	Platform   string
 	Rewards    float64
 	RewardTime string
 	Uptime     float32
@@ -38,10 +39,14 @@ func NewService(
 	return &service, nil
 }
 
+func (s *Service) GetValidatorPlatform(ctx context.Context) (string, error) {
+	s.validator.Platform = "Polygon"
+	return s.validator.Platform, nil
+}
+
 func (s *Service) GetValidatorReward(ctx context.Context) (float64, error) {
-	reward, err := GetValidatorReward()
+	reward, err := GetValidatorReward(s.config.ValidatorIndex)
 	if err != nil {
-		log.Errorf("Can not get validator's reward: %s", err)
 		return 0, err
 	}
 
@@ -53,7 +58,7 @@ func (s *Service) GetValidatorReward(ctx context.Context) (float64, error) {
 }
 
 func (s *Service) GetValidatorUptime(ctx context.Context) (float32, error) {
-	result, err := GetValidatorUptime()
+	result, err := GetValidatorUptime(s.config.ValidatorIndex)
 	if err != nil {
 		return 0, err
 	}
@@ -64,7 +69,7 @@ func (s *Service) GetValidatorUptime(ctx context.Context) (float32, error) {
 }
 
 func (s *Service) IsValidatorHealthy(ctx context.Context) (bool, error) {
-	status, err := GetValidatorStatus()
+	status, err := GetValidatorStatus(s.config.ValidatorIndex)
 	if err != nil {
 		log.Errorf("Can not get validator's healthy")
 	}
@@ -88,7 +93,7 @@ func (s *Service) GetMissingBlocksCount(ctx context.Context) (int, error) {
 }
 
 func (s *Service) GetMissedBlocksOfValidator(ctx context.Context) (int, error) {
-	result, err := GetValidatorMissedBlocks()
+	result, err := GetValidatorMissedBlocks(s.config.ValidatorIndex)
 	if err != nil {
 		return 0, err
 	}
